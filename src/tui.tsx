@@ -1,4 +1,3 @@
-/** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal, onCleanup, Show } from "solid-js"
 import { WINDOWS } from "./windows"
