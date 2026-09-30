@@ -42,4 +42,4 @@ Not shown: the account-level percentage the usage API reports. It is per account
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
