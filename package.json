@@ -1,5 +1,5 @@
 {
-  "name": "opencode-go-usage",
+  "name": "@aberigle/opencode-go-usage",
   "version": "0.1.0",
   "description": "OpenCode TUI sidebar with OpenCode Go token usage and cost per model across 5h, weekly and monthly windows.",
   "keywords": [
@@ -12,19 +12,25 @@
   ],
   "license": "MIT",
   "author": "aberigle",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aberigle/opencode-go-usage.git"
+  },
   "type": "module",
   "files": [
-    "src",
-    "tui.tsx"
+    "tui.ts",
+    "dist"
   ],
-  "dependencies": {
-    "@opentui/solid": "^0.5.13",
-    "solid-js": "^1.9.15"
+  "scripts": {
+    "build": "bun run build.ts",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
     "@opencode/plugin": "^2.0.20",
     "@opencode/theme": "^2.0.20",
     "@opentui/core": "^0.5.13",
+    "@opentui/solid": "^0.5.13",
+    "solid-js": "^1.9.15",
     "@types/bun": "^1.4.2"
   }
 }
