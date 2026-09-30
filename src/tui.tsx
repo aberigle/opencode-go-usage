@@ -24,7 +24,7 @@ function GoUsage(props: { context: Plugin.Context }) {
   const theme = props.context.theme
   const [data, setData] = createSignal<Record<WindowKey, Row[]> | null>(null)
 
-  const worker = new Worker(new URL("./worker.ts", import.meta.url).href)
+  const worker = new Worker(new URL("./worker.js", import.meta.url).href)
 
   const [view, updateView] = props.context.storage.store("view", { initial: { open: true } })
 
