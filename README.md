@@ -17,16 +17,32 @@ Three blocks — `5h`, `week`, `month` — each with the window totals and one r
 
 ## Install
 
-Needs [OpenCode](https://opencode.ai) (tested with 2.0.20) and [Bun](https://bun.sh) for the install step.
+Needs [OpenCode](https://opencode.ai) (tested with 2.0.20). From npm:
+
+```sh
+opencode plugin add @aberigle/opencode-go-usage
+```
+
+Restart OpenCode and the `Go usage` block appears in the sidebar.
+
+```sh
+opencode plugin update @aberigle/opencode-go-usage   # pick up a new version
+opencode plugin remove @aberigle/opencode-go-usage   # uninstall
+```
+
+### From source
+
+Needs [Bun](https://bun.sh) as well.
 
 ```sh
 git clone https://github.com/aberigle/opencode-go-usage
 cd opencode-go-usage
 bun install
+bun run build
 ln -s "$PWD" ~/.config/opencode/plugins/go-usage
 ```
 
-Then restart OpenCode. To update: `git pull` in that directory, and `bun install` again if dependencies changed.
+`bun run build` compiles `src/` into `dist/tui.js` and `dist/worker.js` with the same Solid transform OpenCode applies to plugins, and that compiled pair is all the package ships — OpenCode never compiles JSX when it loads the plugin.
 
 ## How it works
 
