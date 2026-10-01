@@ -32,5 +32,8 @@
     "@opentui/solid": "^0.5.13",
     "solid-js": "^1.9.15",
     "@types/bun": "^1.4.2"
+  },
+  "dependencies": {
+    "xdg-basedir": "^5.1.0"
   }
 }

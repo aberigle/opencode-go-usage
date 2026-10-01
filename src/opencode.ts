@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import { homedir } from "node:os"
+import { xdgData } from "xdg-basedir"
 import { join } from "node:path"
 import type { Resets } from "./windows"
 
@@ -8,8 +8,9 @@ export const PROVIDER = "opencode-go"
 const USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 const RESET_TTL = 10 * 60_000
 
-function dbPath(home = homedir()): string {
-  return join(home, ".local", "share", "opencode", "opencode.db")
+// same roots opencode uses for its data dir
+function dbPath(): string {
+  return join(xdgData!, "opencode", "opencode.db")
 }
 
 export function open(path = dbPath()): Database {
