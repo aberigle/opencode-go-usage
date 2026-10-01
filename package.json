@@ -17,6 +17,9 @@
     "url": "git+https://github.com/aberigle/opencode-go-usage.git"
   },
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "tui.ts",
     "dist"
