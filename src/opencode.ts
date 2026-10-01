@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite"
-import { xdgData } from "xdg-basedir"
 import { join } from "node:path"
+import { xdgData } from "xdg-basedir"
 import type { Resets } from "./windows"
 
 export const PROVIDER = "opencode-go"
@@ -17,12 +17,15 @@ export function open(path = dbPath()): Database {
   return new Database(path, { readonly: true })
 }
 
+// undefined on any problem, the db read included
 function apiKey(db: Database): string | undefined {
-  const row = db
-    .prepare("select value from credential where integration_id = ? and active is not 0 limit 1")
-    .get(PROVIDER) as { value?: string } | undefined
-  if (!row?.value) return undefined
   try {
+    const row = db
+      .prepare("select value from credential where integration_id = ? and active is not 0 limit 1")
+      .get(PROVIDER) as { value?: string } | undefined
+
+    if (!row?.value) return undefined
+
     const parsed = JSON.parse(row.value)
     const key = parsed?.key ?? parsed?.apiKey ?? parsed?.token
     return typeof key === "string" && key.length > 0 ? key : undefined
@@ -33,9 +36,9 @@ function apiKey(db: Database): string | undefined {
 
 type UsageResponse = {
   usage?: {
-    rolling?: { resetsAt?: string }
-    weekly?: { resetsAt?: string }
-    monthly?: { resetsAt?: string }
+    rolling? : { resetsAt?: string }
+    weekly?  : { resetsAt?: string }
+    monthly? : { resetsAt?: string }
   }
 }
 
@@ -46,28 +49,36 @@ function parse(value: unknown): number | undefined {
   return Number.isNaN(at) ? undefined : at
 }
 
-// ponytail: cached 10 min, so the window can be up to 10 min stale. Lower the TTL
-// if the 5h window ever needs to be exact.
-export async function resets(db: Database): Promise<Resets> {
+// cached 10 min, so the window can be up to 10 min stale
+export async function resets(
+  db: Database
+): Promise<Resets> {
+
   if (cached && Date.now() - cached.at < RESET_TTL) return cached.resets
 
-  let key: string | undefined
-  try {
-    key = apiKey(db)
-  } catch {}
+  const next = await fetchResets(db)
+  cached = { at: Date.now(), resets: next }
+  return next
+}
+
+async function fetchResets(
+  db: Database
+): Promise<Resets> {
+
+  const key = apiKey(db)
   if (!key) return cached?.resets ?? {}
 
   try {
     const response = await fetch(USAGE_URL, { headers: { Authorization: `Bearer ${key}` } })
     if (!response.ok) return cached?.resets ?? {}
-    const { usage } = (await response.json()) as UsageResponse
-    const next: Resets = {
-      rolling: parse(usage?.rolling?.resetsAt),
-      weekly: parse(usage?.weekly?.resetsAt),
-      monthly: parse(usage?.monthly?.resetsAt),
+
+    const { usage } = await response.json() as UsageResponse
+
+    return {
+      rolling : parse(usage?.rolling?.resetsAt),
+      weekly  : parse(usage?.weekly?.resetsAt),
+      monthly : parse(usage?.monthly?.resetsAt),
     }
-    cached = { at: Date.now(), resets: next }
-    return next
   } catch {
     return cached?.resets ?? {}
   }
