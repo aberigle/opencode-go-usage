@@ -1,7 +1,7 @@
 export const WINDOWS = {
-  "5h"  : 5 * 3600_000,
-  week  : 7 * 86400_000,
-  month : 30 * 86400_000,
+  rolling : 5  * 3600_000,
+  weekly  : 7  * 86400_000,
+  monthly : 30 * 86400_000,
 } as const
 
 export type WindowKey = keyof typeof WINDOWS
@@ -30,22 +30,34 @@ function previousReset(
   return d.getTime()
 }
 
-const RESET_KEY: Record<WindowKey, keyof Resets> = {
-  "5h": "rolling",
-  week: "weekly",
-  month: "monthly",
+function startOfMonth(
+  now: number
+): number {
+  const d = new Date(now)
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
 }
 
 export function windows(
-  now: number,
-  resets?: Resets
+  now     : number,
+  resets? : Resets
 ): Window[] {
+  const windows = Object.keys(WINDOWS) as WindowKey[]
 
-  return (Object.keys(WINDOWS) as WindowKey[]).map((key) => {
-    const span = WINDOWS[key]
-    const reset = resets?.[RESET_KEY[key]]
-    const to = typeof reset === "number" ? reset : now
-    const from = key === "month" && typeof reset === "number" ? previousReset(to) : to - span
-    return { key, from, to }
-  })
+  return windows
+    .map((key) => {
+      const span  = WINDOWS[key]
+      const reset = resets?.[key]
+      const month = key === "monthly"
+
+      if (typeof reset !== "number") return {
+        key,
+        from: month ? startOfMonth(now) : now - span,
+        to: now
+      }
+
+      // the cached reset already passed, the current window opened there
+      if (reset <= now) return { key, from: reset, to: now }
+
+      return { key, from: month ? previousReset(reset) : reset - span, to: reset }
+    })
 }
