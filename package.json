@@ -1,7 +1,7 @@
 {
   "name": "@aberigle/opencode-go-usage",
   "version": "0.1.0",
-  "description": "OpenCode TUI sidebar with OpenCode Go token usage and cost per model across 5h, weekly and monthly windows.",
+  "description": "OpenCode 2 TUI sidebar with OpenCode Go token usage and cost per model across the rolling, weekly and monthly windows.",
   "keywords": [
     "opencode",
     "opencode-plugin",

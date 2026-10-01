@@ -1,6 +1,6 @@
 # opencode-go-usage
 
-OpenCode TUI sidebar with your OpenCode Go token usage and cost per model, split into 5h, weekly and monthly windows.
+A TUI sidebar showing OpenCode Go token usage and cost by model across the rolling, weekly and monthly windows. Requires OpenCode 2.
 
 | expanded | collapsed |
 | :---: | :---: |
@@ -10,20 +10,23 @@ Click the `Go usage` header to collapse it; collapsed, it shows the current mont
 
 ## What it shows
 
-Three blocks — `5h`, `week`, `month` — each with the window totals and one row per model, sorted by cost:
+Three blocks — `rolling`, `weekly`, `monthly` — each with the window totals, the countdown to the reset and one row per model, sorted by cost. The block stays hidden until OpenCode records a Go message:
 
 - **tokens** = input + cache read + cache write + output + reasoning
 - **cost** = the cost OpenCode already recorded for that message; the plugin never recomputes prices
+- both are shortened the same way, `1.2k`, `3.4M`, `5.6B`
 
 ## Install
 
-Needs [OpenCode](https://opencode.ai) (tested with 2.0.20). From npm:
+Needs [OpenCode](https://opencode.ai) 2 — tested with 2.0.21. From npm:
 
 ```sh
 opencode plugin add @aberigle/opencode-go-usage
 ```
 
 Restart OpenCode and the `Go usage` block appears in the sidebar.
+
+The plugin opens OpenCode's local database read-only and never writes to it. If a Go API key is stored there, it is used for one request — the reset times — and nothing else leaves your machine.
 
 ```sh
 opencode plugin update @aberigle/opencode-go-usage   # pick up a new version
@@ -42,19 +45,18 @@ bun run build
 ln -s "$PWD" ~/.config/opencode/plugins/go-usage
 ```
 
-`bun run build` compiles `src/` into `dist/tui.js` and `dist/worker.js` with the same Solid transform OpenCode applies to plugins, and that compiled pair is all the package ships — OpenCode never compiles JSX when it loads the plugin.
+`bun run build` is required: the plugin ships compiled, OpenCode does not compile JSX when it loads it.
 
 ## How it works
 
 Everything runs locally; the only network call is to fetch reset times.
 
-- **Usage** comes from `~/.local/share/opencode/opencode.db`, opened read-only: it sums `cost` and `tokens.*` from `session_message` for `providerID = "opencode-go"`, grouped by model.
-- **Windows** end at the real reset time when it's known, and otherwise on a rolling window ending now; the month window starts at the previous month's reset.
-- **Reset times** come from `GET https://opencode.ai/zen/go/v1/usage`, authenticated with the OpenCode Go key OpenCode already stores locally. That key is read from the local database and only ever used for that one request. The result is cached for 10 minutes.
-- **Refresh** is event-driven, no polling: it re-reads when OpenCode emits `session.usage.updated` or `session.usage.recorded`.
-- **Off the main thread**: every SQLite read and the network call happen in a Worker.
-
-Not shown: the account-level percentage the usage API reports. It is per account, not per model, so there is nothing meaningful to put next to a model row.
+- **Usage** comes from the OpenCode database, `opencode.db` inside the XDG data dir (`~/.local/share/opencode/` on macOS and Linux, `%USERPROFILE%\.local\share\opencode\` on Windows), opened read-only: it adds up what OpenCode already recorded for Go messages, grouped by model.
+- **Windows** follow the real reset time when it's known. Once that reset has passed, the window starts at that moment and grows from zero, so the numbers are never stale. With no API key the rolling and weekly windows end now and the month window is the calendar month.
+- **Reset times** come from `GET https://opencode.ai/zen/go/v1/usage`, authenticated with the OpenCode Go key OpenCode already stores locally. That key is read from the local database and only ever used for that one request. The result is cached for 10 minutes, so the countdown can lag that much behind.
+- **Refresh** is event-driven, no polling: it re-reads when OpenCode emits `session.usage.updated`.
+- **Off the main thread**: every SQLite read and the network call happen in a Worker, so the sidebar never blocks.
+- **When it cannot read the database** it says so in the sidebar, `could not read usage, check the logs`.
 
 ## License
 
