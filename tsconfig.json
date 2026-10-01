@@ -15,9 +15,12 @@
     "allowImportingTsExtensions": true,
     "types": [
       "bun"
-    ]
+    ],
+    "allowJs": true
   },
   "include": [
-    "src"
+    "src",
+    "tui.ts",
+    "build.ts"
   ]
 }

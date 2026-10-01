@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "build": "bun run build.ts",
+    "typecheck": "bun run build && tsc --noEmit -p .",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
