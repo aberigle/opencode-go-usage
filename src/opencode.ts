@@ -5,6 +5,9 @@ import type { Resets } from "./windows"
 
 export const PROVIDER = "opencode-go"
 
+// credential rows, newest first: the console oauth login, then the older API key
+const CREDENTIALS = ["opencode", PROVIDER] as const
+
 const USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 const RESET_TTL = 10 * 60_000
 
@@ -17,21 +20,25 @@ export function open(path = dbPath()): Database {
   return new Database(path, { readonly: true })
 }
 
-// undefined on any problem, the db read included
+// undefined on any problem, the db read included.
 function apiKey(db: Database): string | undefined {
-  try {
-    const row = db
-      .prepare("select value from credential where integration_id = ? and active is not 0 limit 1")
-      .get(PROVIDER) as { value?: string } | undefined
+  for (const provider of CREDENTIALS) {
+    try {
+      const row = db
+        .prepare("select value from credential where integration_id = ? and active is not 0 order by time_updated desc limit 1")
+        .get(provider) as { value?: string } | undefined
 
-    if (!row?.value) return undefined
+      if (!row?.value) continue
 
-    const parsed = JSON.parse(row.value)
-    const key = parsed?.key ?? parsed?.apiKey ?? parsed?.token
-    return typeof key === "string" && key.length > 0 ? key : undefined
-  } catch {
-    return undefined
+      const parsed = JSON.parse(row.value)
+      const key = parsed?.access ?? parsed?.key ?? parsed?.apiKey ?? parsed?.token
+      if (typeof key === "string" && key.length > 0) return key
+    } catch {
+      // fall through to the next provider
+    }
   }
+
+  return undefined
 }
 
 type UsageResponse = {
