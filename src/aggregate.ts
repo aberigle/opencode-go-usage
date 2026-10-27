@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite"
 import { PROVIDER } from "./opencode"
 import { windows } from "./windows"
-import type { Resets, WindowKey } from "./windows"
+import type { Limits, WindowKey } from "./windows"
 
 export interface Row {
   model      : string
@@ -17,6 +17,7 @@ export interface Row {
 export interface Snapshot {
   byWindow : Record<WindowKey, Row[]>
   ends     : Record<WindowKey, number | undefined>
+  percent  : Record<WindowKey, number | undefined>
 }
 
 const QUERY = `
@@ -67,12 +68,13 @@ function bucket(
 export function snapshot(
   db      : Database,
   now     : number = Date.now(),
-  resets? : Resets
+  limits? : Limits
 ): Snapshot {
 
-  const wins = windows(now, resets)
+  const wins = windows(now, limits?.resets)
   const byWindow = {} as Record<WindowKey, Row[]>
   const ends = {} as Record<WindowKey, number | undefined>
+  const percent = {} as Record<WindowKey, number | undefined>
 
   const from = Math.min(...wins.map((win) => win.from))
   const to   = Math.max(...wins.map((win) => win.to))
@@ -80,7 +82,8 @@ export function snapshot(
 
   for (const { key, from, to } of wins) {
     byWindow[key] = bucket(samples, from, to)
-    ends[key] = resets?.[key]
+    ends[key] = limits?.resets[key]
+    percent[key] = limits?.percent[key]
   }
-  return { byWindow, ends }
+  return { byWindow, ends, percent }
 }

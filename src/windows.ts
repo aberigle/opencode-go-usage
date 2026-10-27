@@ -18,6 +18,15 @@ export interface Resets {
   monthly? : number
 }
 
+// account-wide consumption of each limit, as the API reports it
+export type Percent = Partial<Record<WindowKey, number>>
+
+// both come from the same response, so they travel together
+export interface Limits {
+  resets  : Resets
+  percent : Percent
+}
+
 function previousReset(
   reset: number
 ): number {

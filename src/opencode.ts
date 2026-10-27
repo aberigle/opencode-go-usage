@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
 import { join } from "node:path"
 import { xdgData } from "xdg-basedir"
-import type { Resets } from "./windows"
+import type { Limits, Percent, Resets } from "./windows"
 
 export const PROVIDER = "opencode-go"
 
@@ -43,50 +43,65 @@ function apiKey(db: Database): string | undefined {
 
 type UsageResponse = {
   usage?: {
-    rolling? : { resetsAt?: string }
-    weekly?  : { resetsAt?: string }
-    monthly? : { resetsAt?: string }
+    rolling? : { resetsAt?: string; percent?: number }
+    weekly?  : { resetsAt?: string; percent?: number }
+    monthly? : { resetsAt?: string; percent?: number }
   }
 }
 
-let cached: { at: number; resets: Resets } | undefined
+const KEYS = ["rolling", "weekly", "monthly"] as const
+
+let cached: { at: number; limits: Limits } | undefined
 
 function parse(value: unknown): number | undefined {
   const at = Date.parse(String(value))
   return Number.isNaN(at) ? undefined : at
 }
 
+// one response carries both the reset dates and the consumed percent
+function toLimits(usage: UsageResponse["usage"]): Limits {
+  const resets: Resets = {}
+  const percent: Percent = {}
+
+  for (const key of KEYS) {
+    const window = usage?.[key]
+    if (window === undefined) continue
+
+    const reset = parse(window.resetsAt)
+    if (reset !== undefined) resets[key] = reset
+    if (typeof window.percent === "number") percent[key] = window.percent
+  }
+
+  return { resets, percent }
+}
+
 // cached 10 min, so the window can be up to 10 min stale
-export async function resets(
+export async function limits(
   db: Database
-): Promise<Resets> {
+): Promise<Limits> {
 
-  if (cached && Date.now() - cached.at < RESET_TTL) return cached.resets
+  if (cached && Date.now() - cached.at < RESET_TTL) return cached.limits
 
-  const next = await fetchResets(db)
-  cached = { at: Date.now(), resets: next }
+  const next = await fetchLimits(db)
+  cached = { at: Date.now(), limits: next }
   return next
 }
 
-async function fetchResets(
+async function fetchLimits(
   db: Database
-): Promise<Resets> {
+): Promise<Limits> {
 
+  const empty: Limits = { resets: {}, percent: {} }
   const key = apiKey(db)
-  if (!key) return cached?.resets ?? {}
+  if (!key) return cached?.limits ?? empty
 
   try {
     const response = await fetch(USAGE_URL, { headers: { Authorization: `Bearer ${key}` } })
-    if (!response.ok) return cached?.resets ?? {}
+    if (!response.ok) return cached?.limits ?? empty
 
     const { usage } = await response.json() as UsageResponse
-
-    return {
-      rolling : parse(usage?.rolling?.resetsAt),
-      weekly  : parse(usage?.weekly?.resetsAt),
-      monthly : parse(usage?.monthly?.resetsAt),
-    }
+    return toLimits(usage)
   } catch {
-    return cached?.resets ?? {}
+    return cached?.limits ?? empty
   }
 }

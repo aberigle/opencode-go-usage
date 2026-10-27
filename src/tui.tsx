@@ -110,10 +110,11 @@ function GoUsage(
 
       const end = snapshot?.ends[key]
       const left = Number.isFinite(end) ? timeLeft(end! - Date.now()) : "?"
+      const percent = snapshot?.percent[key]
 
       const [label, when] = line([
         { text: key, max: key.length + 1 },
-        { text: `· ${left}` },
+        { text: typeof percent === "number" ? `${Math.round(percent)}% · ${left}` : `· ${left}` },
       ], BLOCK_WIDTH - TOKEN_WIDTH - COST_WIDTH)
 
       return {
