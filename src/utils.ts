@@ -27,12 +27,12 @@ export function timeLeft(ms: number): string {
   const hours = Math.floor(ms / 3_600_000)
   if (hours < 24) {
     const rest = mins % 60
-    return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`
+    return rest > 0 ? `${hours}h${rest}m` : `${hours}h`
   }
 
   const days = Math.floor(ms / 86_400_000)
   const rest = hours % 24
-  return rest > 0 ? `${days}d ${rest}h` : `${days}d`
+  return rest > 0 ? `${days}d${rest}h` : `${days}d`
 }
 
 // sum tokens incuding cache

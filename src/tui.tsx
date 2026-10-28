@@ -162,7 +162,7 @@ function GoUsage(
             const block = month()
             const [title, when] = line([
               { text: `${view.open ? "▼ Go usage" : "▶ Go usage"}` },
-              { text: block.left, align: "right" },
+              { text: block.when, align: "right" },
             ], BLOCK_WIDTH - TOKEN_WIDTH - COST_WIDTH)
             return (
               <>
