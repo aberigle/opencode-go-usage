@@ -1,5 +1,7 @@
 import type { Database } from "bun:sqlite"
 import { PROVIDER } from "./opencode"
+import { cost, factor } from "./prices"
+import type { Catalog } from "./prices"
 import { windows } from "./windows"
 import type { Limits, WindowKey } from "./windows"
 
@@ -13,6 +15,9 @@ export interface Row {
   output     : number
   reasoning  : number
 }
+
+// the fields the price is worked out from
+export type Tokens = Pick<Row, "input" | "output" | "reasoning" | "cacheRead" | "cacheWrite">
 
 export interface Snapshot {
   byWindow : Record<WindowKey, Row[]>
@@ -38,13 +43,14 @@ interface Sample extends Omit<Row, "requests"> {
   at : number
 }
 
-const FIELDS = ["cost", "input", "cacheRead", "cacheWrite", "output", "reasoning"] as const
+const FIELDS = ["input", "cacheRead", "cacheWrite", "output", "reasoning"] as const
 
 // the windows are nested, so one scan of the widest range covers all of them
 function bucket(
   samples : Sample[],
   from    : number,
-  to      : number
+  to      : number,
+  prices  : Catalog
 ): Row[] {
 
   const totals = new Map<string, Row>()
@@ -59,6 +65,12 @@ function bucket(
     }
 
     total.requests += 1
+
+    // the stored cost is base price, so the peak still applies on top. new rows
+    // arrive with zero and cost is worked out from the tokens instead
+    const base = sample.cost > 0 ? sample.cost : cost(prices, sample.model, sample) ?? 0
+    total.cost += base * factor(prices, sample.model, at)
+
     for (const key of FIELDS) total[key] += sample[key]
   }
 
@@ -68,7 +80,8 @@ function bucket(
 export function snapshot(
   db      : Database,
   now     : number = Date.now(),
-  limits? : Limits
+  limits? : Limits,
+  prices  : Catalog = {}
 ): Snapshot {
 
   const wins = windows(now, limits?.resets)
@@ -81,7 +94,7 @@ export function snapshot(
   const samples = db.prepare(QUERY).all(PROVIDER, from, to) as Sample[]
 
   for (const { key, from, to } of wins) {
-    byWindow[key] = bucket(samples, from, to)
+    byWindow[key] = bucket(samples, from, to, prices)
     ends[key] = limits?.resets[key]
     percent[key] = limits?.percent[key]
   }
