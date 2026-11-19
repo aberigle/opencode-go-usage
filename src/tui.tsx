@@ -205,7 +205,9 @@ function GoUsage(
             <box flexDirection="column" marginTop={1}>
               <box flexDirection="row">
                 <text>{block.label}</text>
-                <text fg={theme.text.muted}>{block.when}</text>
+                <Show when={block.when}>
+                  <text fg={theme.text.muted}>{block.when}</text>
+                </Show>
                 <text>{block.tail}</text>
               </box>
               {block.rows.length === 0 ? (

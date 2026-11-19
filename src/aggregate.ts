@@ -43,10 +43,17 @@ where json_extract(data,'$.model.providerID') = ?
   and time_created >= ? and time_created <= ?
 `
 
-// the whole session, whatever its age: the rolling window can open after it started
-const SESSION_QUERY = `${COLUMNS}
+// the session and every subagent session under it, whatever their age. `union`
+// dedupes ids, so a cycle in parent_id cannot hang the query
+const SESSION_QUERY = `
+with recursive tree(id) as (
+  select ?
+  union
+  select s.id from session_v2 s join tree on s.parent_id = tree.id
+)
+${COLUMNS}
 where json_extract(data,'$.model.providerID') = ?
-  and session_id = ?
+  and session_id in (select id from tree)
 `
 
 interface Sample extends Omit<Row, "requests"> {
@@ -105,7 +112,7 @@ export function snapshot(
   const samples = db.prepare(QUERY).all(PROVIDER, from, to) as Sample[]
 
   const session = sessionID
-    ? bucket(db.prepare(SESSION_QUERY).all(PROVIDER, sessionID) as Sample[], 0, now, prices)
+    ? bucket(db.prepare(SESSION_QUERY).all(sessionID, PROVIDER) as Sample[], 0, now, prices)
     : []
 
   for (const { key, from, to } of wins) {
