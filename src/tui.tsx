@@ -160,6 +160,26 @@ function GoUsage(
 
   const month = () => blocks().find((block) => block.key === "monthly")!
 
+  // the session block stays outside the fold: the windows collapse, its cost does not
+  const block = (data: { label: string, when: string, tail: string, rows: string[] }, top = true) => (
+    <box flexDirection="column" marginTop={top ? 1 : 0}>
+      <box flexDirection="row">
+        <text>{data.label}</text>
+        <Show when={data.when}>
+          <text fg={theme.text.muted}>{data.when}</text>
+        </Show>
+        <text>{data.tail}</text>
+      </box>
+      {data.rows.length === 0 ? (
+        <text fg={theme.text.muted}>{line([{ text: "(no data)" }], BLOCK_WIDTH)[0]}</text>
+      ) : (
+        data.rows.map((row) => (
+          <text fg={theme.text.muted}>{row}</text>
+        ))
+      )}
+    </box>
+  )
+
   return (
     <Show
       when={blocks().some((block) => block.rows.length > 0)}
@@ -177,15 +197,18 @@ function GoUsage(
       }
     >
       <box>
+        {block(blocks()[0], false)}
+
         <box
           flexDirection="row"
+          marginTop={1}
           onMouseDown={() => void updateView((draft) => draft.open = !draft.open)}
         >
           {(() => {
-            const block = month()
+            const latest = month()
             const [title, when] = line([
               { text: `${view.open ? "▼ Go usage" : "▶ Go usage"}` },
-              { text: block.when, align: "right" },
+              { text: latest.when, align: "right" },
             ], BLOCK_WIDTH - TOKEN_WIDTH - COST_WIDTH)
             return (
               <>
@@ -193,7 +216,7 @@ function GoUsage(
                   <b>{title}</b>
                 </text>
                 <Show when={!view.open}>
-                  <text fg={theme.text.muted}>{`${when}${block.tail}`}</text>
+                  <text fg={theme.text.muted}>{`${when}${latest.tail}`}</text>
                 </Show>
               </>
             )
@@ -201,24 +224,7 @@ function GoUsage(
         </box>
 
         <Show when={view.open}>
-          {blocks().map((block) => (
-            <box flexDirection="column" marginTop={1}>
-              <box flexDirection="row">
-                <text>{block.label}</text>
-                <Show when={block.when}>
-                  <text fg={theme.text.muted}>{block.when}</text>
-                </Show>
-                <text>{block.tail}</text>
-              </box>
-              {block.rows.length === 0 ? (
-                <text fg={theme.text.muted}>{line([{ text: "(no data)" }], BLOCK_WIDTH)[0]}</text>
-              ) : (
-                block.rows.map((row) => (
-                  <text fg={theme.text.muted}>{row}</text>
-                ))
-              )}
-            </box>
-          ))}
+          {blocks().slice(1).map((item) => block(item))}
         </Show>
       </box>
     </Show>
