@@ -1,6 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
-import { createMemo, createSignal, onCleanup, Setter, Show } from "solid-js"
-import type { Snapshot } from "./aggregate"
+import { createEffect, createMemo, createSignal, on, onCleanup, Setter, Show } from "solid-js"
+import type { Row, Snapshot } from "./aggregate"
 import { formatCost, formatTokens, line, timeLeft, totalTokens } from "./utils"
 import type { WindowKey } from "./windows"
 import { WINDOWS } from "./windows"
@@ -16,7 +16,8 @@ const ERROR_TEXT = "could not read usage, check the logs"
 
 function createWorker(
   setData  : Setter<Snapshot | null>,
-  setError : Setter<string | undefined>
+  setError : Setter<string | undefined>,
+  session  : () => string | undefined
 ) {
 
   const fail = (error: string) => {
@@ -32,7 +33,7 @@ function createWorker(
 
   const run = () => {
     running = true
-    worker.postMessage({ now: Date.now() })
+    worker.postMessage({ now: Date.now(), sessionID: session() })
   }
 
   worker.onmessage = (event: MessageEvent) => {
@@ -79,7 +80,7 @@ function listenForEvents(
 }
 
 function GoUsage(
-  props: { context: Plugin.Context }
+  props: { context: Plugin.Context, sessionID: string }
 ) {
   const theme = props.context.theme
 
@@ -87,7 +88,7 @@ function GoUsage(
   const [error, setError] = createSignal<string | undefined>()
   const [view, updateView] = props.context.storage.store("view", { initial: { open: true } })
 
-  const worker   = createWorker(setData, setError)
+  const worker   = createWorker(setData, setError, () => props.sessionID)
   const listener = listenForEvents(props.context, worker.request)
 
   onCleanup(() => {
@@ -95,7 +96,9 @@ function GoUsage(
     worker.terminate()
   })
 
-  worker.request()
+  // the slot input is reactive: a switch of session asks for a new snapshot, and the
+  // effect also covers the first request on mount
+  createEffect(on(() => props.sessionID, () => worker.request()))
 
 
   // One line per model, the window totals and the countdown. Recomputed only when the
@@ -103,10 +106,37 @@ function GoUsage(
   const blocks = createMemo(() => {
     const snapshot = data()
 
-    return WINDOW_KEYS.map((key) => {
+    const total = (models: Row[], pick: (row: Row) => number) =>
+      models.reduce((sum, row) => sum + pick(row), 0)
+
+    const rows = (models: Row[]) => models.map((row) => line([
+      { text: row.model },
+      { text: formatTokens(totalTokens(row)), align: "right", max: TOKEN_WIDTH },
+      { text: formatCost(row.cost), align: "right", max: COST_WIDTH },
+    ], BLOCK_WIDTH).join(""))
+
+    const tail = (models: Row[]) => line([
+      { text: formatTokens(total(models, totalTokens)), align: "right", max: TOKEN_WIDTH },
+      { text: formatCost(total(models, (row) => row.cost)), align: "right", max: COST_WIDTH },
+    ], BLOCK_WIDTH).join("")
+
+    // the running session goes first: its whole cost, whatever the windows cover
+    const session = snapshot?.session ?? []
+
+    const first = {
+      key: "session",
+      left: "",
+      label: line([
+        { text: "session", max: "session".length + 1 },
+        { text: "" },
+      ], BLOCK_WIDTH - TOKEN_WIDTH - COST_WIDTH).join(""),
+      when: "",
+      rows: rows(session),
+      tail: tail(session),
+    }
+
+    return [first, ...WINDOW_KEYS.map((key) => {
       const models = snapshot?.byWindow[key] ?? []
-      const sum = (pick: (row: (typeof models)[number]) => number) =>
-        models.reduce((total, row) => total + pick(row), 0)
 
       const end = snapshot?.ends[key]
       const left = Number.isFinite(end) ? timeLeft(end! - Date.now()) : "?"
@@ -122,17 +152,10 @@ function GoUsage(
         left,
         label,
         when,
-        rows: models.map((row) => line([
-          { text: row.model },
-          { text: formatTokens(totalTokens(row)), align: "right", max: TOKEN_WIDTH },
-          { text: formatCost(row.cost), align: "right", max: COST_WIDTH },
-        ], BLOCK_WIDTH).join("")),
-        tail: line([
-          { text: formatTokens(sum((row) => totalTokens(row))), align: "right", max: TOKEN_WIDTH },
-          { text: formatCost(sum((row) => row.cost)), align: "right", max: COST_WIDTH },
-        ], BLOCK_WIDTH).join(""),
+        rows: rows(models),
+        tail: tail(models),
       }
-    })
+    })]
   })
 
   const month = () => blocks().find((block) => block.key === "monthly")!
@@ -205,7 +228,7 @@ export default Plugin.define({
   setup(context) {
     return context.ui.slot({
       append: "sidebar.content",
-      render: () => <GoUsage context={context} />,
+      render: (input) => <GoUsage context={context} sessionID={input.sessionID} />,
     })
   },
 })

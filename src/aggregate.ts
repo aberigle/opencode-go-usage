@@ -20,12 +20,13 @@ export interface Row {
 export type Tokens = Pick<Row, "input" | "output" | "reasoning" | "cacheRead" | "cacheWrite">
 
 export interface Snapshot {
+  session  : Row[]
   byWindow : Record<WindowKey, Row[]>
   ends     : Record<WindowKey, number | undefined>
   percent  : Record<WindowKey, number | undefined>
 }
 
-const QUERY = `
+const COLUMNS = `
 select coalesce(json_extract(data,'$.model.id'), '?')             as model,
        time_created                                                 as at,
        coalesce(json_extract(data,'$.cost'), 0)                    as cost,
@@ -35,8 +36,17 @@ select coalesce(json_extract(data,'$.model.id'), '?')             as model,
        coalesce(json_extract(data,'$.tokens.output'), 0)           as output,
        coalesce(json_extract(data,'$.tokens.reasoning'), 0)        as reasoning
 from session_message
+`
+
+const QUERY = `${COLUMNS}
 where json_extract(data,'$.model.providerID') = ?
   and time_created >= ? and time_created <= ?
+`
+
+// the whole session, whatever its age: the rolling window can open after it started
+const SESSION_QUERY = `${COLUMNS}
+where json_extract(data,'$.model.providerID') = ?
+  and session_id = ?
 `
 
 interface Sample extends Omit<Row, "requests"> {
@@ -78,10 +88,11 @@ function bucket(
 }
 
 export function snapshot(
-  db      : Database,
-  now     : number = Date.now(),
-  limits? : Limits,
-  prices  : Catalog = {}
+  db        : Database,
+  now       : number = Date.now(),
+  limits?   : Limits,
+  prices    : Catalog = {},
+  sessionID?: string
 ): Snapshot {
 
   const wins = windows(now, limits?.resets)
@@ -93,10 +104,14 @@ export function snapshot(
   const to   = Math.max(...wins.map((win) => win.to))
   const samples = db.prepare(QUERY).all(PROVIDER, from, to) as Sample[]
 
+  const session = sessionID
+    ? bucket(db.prepare(SESSION_QUERY).all(PROVIDER, sessionID) as Sample[], 0, now, prices)
+    : []
+
   for (const { key, from, to } of wins) {
     byWindow[key] = bucket(samples, from, to, prices)
     ends[key] = limits?.resets[key]
     percent[key] = limits?.percent[key]
   }
-  return { byWindow, ends, percent }
+  return { session, byWindow, ends, percent }
 }
